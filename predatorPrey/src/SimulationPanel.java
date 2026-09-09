@@ -22,22 +22,43 @@ public class SimulationPanel extends JPanel {
 
     private void moveCreatures() {
 
+        Predator predator = null;
+        Prey prey = null;
+
         for (Entity entity : simulation.getEntities()) {
 
-            if (entity instanceof Creature) {
+            if (entity instanceof Predator) {
+                predator = (Predator) entity;
+            }
 
-                int changeX = random.nextInt(3) - 1;
-                int changeY = random.nextInt(3) - 1;
+            if (entity instanceof Prey) {
+                prey = (Prey) entity;
+            }
+        }
 
-                int newX = entity.getX() + changeX;
-                int newY = entity.getY() + changeY;
+        // Prey still moves randomly for now
+        if (prey != null) {
 
-                try {
-                    entity.moveTo(newX, newY, 20, 20);
-                } catch (InvalidPositionException e) {
-                    // If movement goes outside the grid,
-                    // the entity simply stays where it is.
-                }
+            int changeX = random.nextInt(3) - 1;
+            int changeY = random.nextInt(3) - 1;
+
+            int newX = prey.getX() + changeX;
+            int newY = prey.getY() + changeY;
+
+            try {
+                prey.moveTo(newX, newY, 20, 20);
+            } catch (InvalidPositionException e) {
+                // Stay in the same position
+            }
+        }
+
+        // Predator moves towards prey
+        if (predator != null && prey != null) {
+
+            try {
+                predator.chase(prey, 20, 20);
+            } catch (InvalidPositionException e) {
+                // Stay in the same position
             }
         }
     }
