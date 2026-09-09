@@ -36,30 +36,38 @@ public class SimulationPanel extends JPanel {
             }
         }
 
-        // Prey still moves randomly for now
-        if (prey != null) {
-
-            int changeX = random.nextInt(3) - 1;
-            int changeY = random.nextInt(3) - 1;
-
-            int newX = prey.getX() + changeX;
-            int newY = prey.getY() + changeY;
-
-            try {
-                prey.moveTo(newX, newY, 20, 20);
-            } catch (InvalidPositionException e) {
-                // Stay in the same position
-            }
+        if (predator == null || prey == null) {
+            return;
         }
 
-        // Predator moves towards prey
-        if (predator != null && prey != null) {
+        try {
 
-            try {
-                predator.chase(prey, 20, 20);
-            } catch (InvalidPositionException e) {
-                // Stay in the same position
+            // Prey checks if predator is close
+            prey.escapeFrom(predator, 20, 20);
+
+            // If predator is not close, prey moves randomly
+            if (!prey.isInDanger()) {
+
+                int changeX = random.nextInt(3) - 1;
+                int changeY = random.nextInt(3) - 1;
+
+                int newX = prey.getX() + changeX;
+                int newY = prey.getY() + changeY;
+
+                prey.moveTo(newX, newY, 20, 20);
             }
+
+        } catch (InvalidPositionException e) {
+            // Prey stays where it is
+        }
+
+        try {
+
+            // Predator moves towards prey
+            predator.chase(prey, 20, 20);
+
+        } catch (InvalidPositionException e) {
+            // Predator stays where it is
         }
     }
 
