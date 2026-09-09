@@ -1,3 +1,5 @@
+import javax.swing.*;
+
 public class App {
 
     public static void main(String[] args) {
@@ -16,28 +18,34 @@ public class App {
             "Entities in simulation: " + simulation.getEntityCount()
         );
 
-        System.out.println(
-            "Starting position: " + prey.getX() + ", " + prey.getY()
-        );
-
         try {
             // Valid movement
             prey.moveTo(6, 5, 20, 20);
 
             System.out.println(
-                "New position: " + prey.getX() + ", " + prey.getY()
+                "Prey moved to: " + prey.getX() + ", " + prey.getY()
             );
 
-            // Invalid movement - outside the 20 x 20 grid
+            // Invalid movement to demonstrate exception handling
             prey.moveTo(25, 5, 20, 20);
 
         } catch (InvalidPositionException e) {
-
             System.out.println(
                 "Movement error: " + e.getMessage()
             );
         }
 
-        System.out.println("Program continues...");
+        JFrame frame = new JFrame("Predator Prey Simulation");
+
+        SimulationPanel panel = new SimulationPanel(simulation);
+
+        frame.add(panel);
+        frame.pack();
+
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        frame.setLocationRelativeTo(null);
+
+        frame.setVisible(true);
     }
 }
