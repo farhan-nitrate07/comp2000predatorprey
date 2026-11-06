@@ -1,11 +1,12 @@
-import java.util.ArrayList;
+
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 
 public abstract class Creature extends Entity {
 
-    private int speed; 
+    private int speed;
     private int starvation;
     private int lastX;
     private int lastY;
@@ -32,25 +33,25 @@ public abstract class Creature extends Entity {
 
     protected abstract int getStarvationRate();
 
-    public boolean starve(){
+    public boolean starve() {
         starvation += getStarvationRate();
         return starvation >= STARVATION_THRESHOLD;
     }
 
-    protected void recordPosition(){
+    protected void recordPosition() {
         lastX = getX();
         lastY = getY();
     }
 
-    public int getVelocityX(){
+    public int getVelocityX() {
         return getX() - lastX;
     }
 
-    public int getVelocityY(){
+    public int getVelocityY() {
         return getY() - lastY;
     }
 
-    protected void moveWithBounce(){
+    protected void moveWithBounce() {
         int newX = getX() + dx * getSpeed();
         int newY = getY() + dy * getSpeed();
 
@@ -58,6 +59,7 @@ public abstract class Creature extends Entity {
             dx = -dx;
             newX = getX() + dx * getSpeed();
         }
+
         if (newY < 0 || newY > WORLD_HEIGHT - SIZE) {
             dy = -dy;
             newY = getY() + dy * getSpeed();
@@ -67,58 +69,60 @@ public abstract class Creature extends Entity {
         setY(Math.max(0, Math.min(newY, WORLD_HEIGHT - SIZE)));
     }
 
-    // Keeps a creature inside the visible world after any direct setX/setY movement
-    protected void clampToWorld(){
+    // Keeps a creature inside the visible world after direct movement
+    protected void clampToWorld() {
         setX(Math.max(0, Math.min(getX(), WORLD_WIDTH - SIZE)));
         setY(Math.max(0, Math.min(getY(), WORLD_HEIGHT - SIZE)));
     }
 
-    public void resetStarvation(){
+    public void resetStarvation() {
         starvation = 0;
     }
 
-    protected void addStarvation(int amount){
+    protected void addStarvation(int amount) {
         starvation += amount;
     }
 
     public abstract void movement();
+
     public abstract void eat();
+
     public abstract void reproduce();
 
-    public <E extends Entity> Optional<E> findClosest(List<E> targets){
-        E closest = null;
-        double minDist = Double.MAX_VALUE;
-
-        for (E target : targets){
-            double dist = Math.hypot(getX() - target.getX(), getY() - target.getY());
-            if (dist < minDist) {
-                minDist = dist;
-                closest = target;
-            }
-        }
-        return Optional.ofNullable(closest);
+    // Uses Streams and a Comparator to find the nearest entity
+    public <E extends Entity> Optional<E> findClosest(List<E> targets) {
+        return targets.stream()
+                .min(Comparator.comparingDouble(
+                        target -> Math.hypot(
+                                getX() - target.getX(),
+                                getY() - target.getY()
+                        )
+                ));
     }
 
-    public int getSpeed(){
+    public int getSpeed() {
         return speed;
     }
 
-    public void setSpeed(int speed){
+    public void setSpeed(int speed) {
         this.speed = speed;
     }
 
-    public int getStarvation(){
+    public int getStarvation() {
         return starvation;
     }
 
-    protected <E extends Creature> Optional<E> findNearestInRange(List<E> candidates, int range) {
-        List<E> withinRange = new ArrayList<>();
-        for (E c : candidates) {
-            if (Math.hypot(getX() - c.getX(), getY() - c.getY()) <= range) {
-                withinRange.add(c);
-            }
-        }
+    // Uses Streams to find the nearest creature within detection range
+    protected <E extends Creature> Optional<E> findNearestInRange(
+            List<E> candidates, int range) {
+
+        List<E> withinRange = candidates.stream()
+                .filter(c -> Math.hypot(
+                        getX() - c.getX(),
+                        getY() - c.getY()
+                ) <= range)
+                .toList();
+
         return findClosest(withinRange);
     }
-    
 }
