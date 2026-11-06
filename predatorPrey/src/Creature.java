@@ -8,25 +8,37 @@ public abstract class Creature extends Entity {
 
     private int speed;
     private int starvation;
+
+    // Position and movement tracking
     private int lastX;
     private int lastY;
+    private int velocityX;
+    private int velocityY;
+
     private int dx;
     private int dy;
 
     private static final Random random = new Random();
     private static final int STARVATION_THRESHOLD = 100;
 
-    // Sets world size, shares with rendering
+    // World dimensions shared with the simulation
     public static final int WORLD_WIDTH = 1500;
     public static final int WORLD_HEIGHT = 800;
     protected static final int SIZE = 20;
 
     public Creature(int speed, int starvation, boolean isFood, int x, int y) {
         super(x, y, isFood);
+
         this.speed = speed;
         this.starvation = starvation;
+
         this.lastX = x;
         this.lastY = y;
+
+        // No movement has happened when the creature is created
+        this.velocityX = 0;
+        this.velocityY = 0;
+
         this.dx = random.nextBoolean() ? 1 : -1;
         this.dy = random.nextBoolean() ? 1 : -1;
     }
@@ -38,20 +50,28 @@ public abstract class Creature extends Entity {
         return starvation >= STARVATION_THRESHOLD;
     }
 
+    // Save the most recent movement before updating previous position
     protected void recordPosition() {
+
+        velocityX = getX() - lastX;
+        velocityY = getY() - lastY;
+
         lastX = getX();
         lastY = getY();
     }
 
+    // Used by HuntStrategy to predict target movement
     public int getVelocityX() {
-        return getX() - lastX;
+        return velocityX;
     }
 
     public int getVelocityY() {
-        return getY() - lastY;
+        return velocityY;
     }
 
+    // Normal wandering movement with world boundary bouncing
     protected void moveWithBounce() {
+
         int newX = getX() + dx * getSpeed();
         int newY = getY() + dy * getSpeed();
 
@@ -69,8 +89,9 @@ public abstract class Creature extends Entity {
         setY(Math.max(0, Math.min(newY, WORLD_HEIGHT - SIZE)));
     }
 
-    // Keeps a creature inside the visible world after direct movement
+    // Keep creatures inside the visible world
     protected void clampToWorld() {
+
         setX(Math.max(0, Math.min(getX(), WORLD_WIDTH - SIZE)));
         setY(Math.max(0, Math.min(getY(), WORLD_HEIGHT - SIZE)));
     }
@@ -89,8 +110,9 @@ public abstract class Creature extends Entity {
 
     public abstract void reproduce();
 
-    // Uses Streams and a Comparator to find the nearest entity
+    // Find the nearest entity using generics, Streams and a Comparator
     public <E extends Entity> Optional<E> findClosest(List<E> targets) {
+
         return targets.stream()
                 .min(Comparator.comparingDouble(
                         target -> Math.hypot(
@@ -112,7 +134,7 @@ public abstract class Creature extends Entity {
         return starvation;
     }
 
-    // Uses Streams to find the nearest creature within detection range
+    // Filter creatures by range using a Stream
     protected <E extends Creature> Optional<E> findNearestInRange(
             List<E> candidates, int range) {
 
