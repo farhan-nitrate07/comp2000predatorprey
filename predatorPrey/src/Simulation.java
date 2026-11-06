@@ -13,14 +13,13 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.Timer;
+import javax.swing.SwingUtilities;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Graphics;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 
 public class Simulation {
 
@@ -29,50 +28,64 @@ public class Simulation {
     private static final int GRASS_SIZE = 20;
     private static final int GRASS_GROWTH_TIME = 1000;
 
+    // Limits to prevent excessive population growth
+    private static final int MAX_STARTING_PREDATORS = 30;
+    private static final int MAX_STARTING_PREY = 100;
+    private static final int MAX_POPULATION = 200;
+
     private int frameCounter = 0;
     private final Random random = new Random();
 
-    List<Creature> sim;
-    List<Grass> grassList;
+    private final List<Creature> sim;
+    private final List<Grass> grassList;
 
-    // Simulation windows and controls
+    // Starting window and controls
     private JFrame simStart;
     private JPanel panel;
+
     private JButton begin;
     private JButton savePred;
     private JButton savePrey;
 
-    private JFrame runningSim;
-    private SimPanel simPanel;
-    private Timer gameTimer;
-
     private JLabel pred;
     private JLabel prey;
+    private JLabel warning;
+
     private JTextField predAmount;
     private JTextField preyAmount;
 
-    private int entPredAmount;
-    private int entPreyAmount;
-
-    private JLabel warning;
     private JPanel row1;
     private JPanel row2;
     private JPanel row3;
     private JPanel row4;
+
     private Dimension rowSize;
+
+    // Prevent duplicate starting populations
+    private boolean predatorsSaved = false;
+    private boolean preySaved = false;
+
+    // Running simulation window
+    private JFrame runningSim;
+    private SimPanel simPanel;
+    private Timer gameTimer;
 
     // Individual improvement: live ecosystem statistics
     private JLabel statsLabel;
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
 
-        List<Creature> sim = new ArrayList<>();
+        SwingUtilities.invokeLater(() -> {
 
-        Simulation mainSim = new Simulation(sim);
-        mainSim.frameInitialise();
+            List<Creature> creatures = new ArrayList<>();
+
+            Simulation mainSim = new Simulation(creatures);
+            mainSim.frameInitialise();
+        });
     }
 
     public Simulation(List<Creature> sim) {
+
         this.sim = sim;
         this.grassList = new ArrayList<>();
     }
@@ -80,16 +93,25 @@ public class Simulation {
     public void frameInitialise() {
 
         simStart = new JFrame("Predator, Prey Simulation");
-        simStart.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+        simStart.setDefaultCloseOperation(
+                JFrame.EXIT_ON_CLOSE
+        );
+
         simStart.setSize(800, 700);
         simStart.setLocationRelativeTo(null);
         simStart.setResizable(false);
 
         panel = new JPanel();
 
-        warning = new JLabel("DO NOT SAVE NUMBERS MULTIPLE TIMES");
+        warning = new JLabel(
+                "Enter both populations and click Save."
+        );
 
         begin = new JButton("Start");
+
+        // Start only after both populations have been saved
+        begin.setEnabled(false);
 
         pred = new JLabel("Starting predator amount");
         prey = new JLabel("Starting prey amount");
@@ -100,169 +122,245 @@ public class Simulation {
         savePred = new JButton("Save");
         savePrey = new JButton("Save");
 
-        row1 = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
-        row2 = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
-        row3 = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
-        row4 = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        row1 = new JPanel(
+                new FlowLayout(FlowLayout.CENTER, 10, 0)
+        );
+
+        row2 = new JPanel(
+                new FlowLayout(FlowLayout.CENTER, 10, 0)
+        );
+
+        row3 = new JPanel(
+                new FlowLayout(FlowLayout.CENTER, 10, 0)
+        );
+
+        row4 = new JPanel(
+                new FlowLayout(FlowLayout.CENTER, 10, 0)
+        );
 
         rowSize = new Dimension(800, 80);
 
+        // Save starting predator population
+        savePred.addActionListener(e -> {
+
+            if (predatorsSaved) {
+                return;
+            }
+
+            int input;
+
+            try {
+
+                input = Integer.parseInt(
+                        predAmount.getText().trim()
+                );
+
+            } catch (NumberFormatException ex) {
+
+                warning.setText(
+                        "Enter a valid whole number for predators."
+                );
+
+                return;
+            }
+
+            if (input < 0 || input > MAX_STARTING_PREDATORS) {
+
+                warning.setText(
+                        "Predators must be between 0 and "
+                        + MAX_STARTING_PREDATORS + "."
+                );
+
+                return;
+            }
+
+            for (int i = 0; i < input; i++) {
+
+                int x = random.nextInt(
+                        Creature.WORLD_WIDTH - Creature.SIZE + 1
+                );
+
+                int y = random.nextInt(
+                        Creature.WORLD_HEIGHT - Creature.SIZE + 1
+                );
+
+                sim.add(
+                        new Predator(5, 0, x, y, sim)
+                );
+            }
+
+            predatorsSaved = true;
+
+            // Stop the user from adding the population again
+            savePred.setEnabled(false);
+            predAmount.setEditable(false);
+
+            warning.setText(
+                    "Saved " + input + " predators."
+            );
+
+            updateStartButton();
+        });
+
+        // Save starting prey population
+        savePrey.addActionListener(e -> {
+
+            if (preySaved) {
+                return;
+            }
+
+            int input;
+
+            try {
+
+                input = Integer.parseInt(
+                        preyAmount.getText().trim()
+                );
+
+            } catch (NumberFormatException ex) {
+
+                warning.setText(
+                        "Enter a valid whole number for prey."
+                );
+
+                return;
+            }
+
+            if (input < 0 || input > MAX_STARTING_PREY) {
+
+                warning.setText(
+                        "Prey must be between 0 and "
+                        + MAX_STARTING_PREY + "."
+                );
+
+                return;
+            }
+
+            for (int i = 0; i < input; i++) {
+
+                int x = random.nextInt(
+                        Creature.WORLD_WIDTH - Creature.SIZE + 1
+                );
+
+                int y = random.nextInt(
+                        Creature.WORLD_HEIGHT - Creature.SIZE + 1
+                );
+
+                sim.add(
+                        new Prey(
+                                5,
+                                10,
+                                x,
+                                y,
+                                sim,
+                                grassList
+                        )
+                );
+            }
+
+            preySaved = true;
+
+            // Prevent duplicate saves
+            savePrey.setEnabled(false);
+            preyAmount.setEditable(false);
+
+            warning.setText(
+                    "Saved " + input + " prey."
+            );
+
+            updateStartButton();
+        });
+
         // Start the running simulation
-        begin.addActionListener(new ActionListener() {
+        begin.addActionListener(e -> {
 
-            @Override
-            public void actionPerformed(ActionEvent e) {
+            if (!predatorsSaved || !preySaved) {
 
-                spawnGrass();
-
-                simStart.setDefaultCloseOperation(
-                        JFrame.DO_NOTHING_ON_CLOSE
+                warning.setText(
+                        "Save both populations before starting."
                 );
 
-                runningSim = new JFrame(
-                        "Predator, Prey Simulation. RUNNING"
-                );
-
-                runningSim.setDefaultCloseOperation(
-                        JFrame.EXIT_ON_CLOSE
-                );
-
-                simStart.dispose();
-                simStart.setVisible(false);
-
-                // Create simulation display
-                simPanel = new SimPanel();
-
-                simPanel.setPreferredSize(
-                        new Dimension(
-                                Creature.WORLD_WIDTH,
-                                Creature.WORLD_HEIGHT
-                        )
-                );
-
-                simPanel.setBackground(new Color(18, 84, 13));
-
-                runningSim.add(simPanel, BorderLayout.CENTER);
-
-                // New: create the live statistics bar
-                statsLabel = new JLabel();
-
-                statsLabel.setOpaque(true);
-                statsLabel.setBackground(new Color(24, 55, 30));
-                statsLabel.setForeground(Color.WHITE);
-
-                statsLabel.setFont(
-                        statsLabel.getFont().deriveFont(15f)
-                );
-
-                statsLabel.setBorder(
-                        BorderFactory.createEmptyBorder(
-                                10, 15, 10, 15
-                        )
-                );
-
-                runningSim.add(statsLabel, BorderLayout.SOUTH);
-
-                // Display initial population statistics
-                updateStatistics();
-
-                runningSim.setResizable(false);
-                runningSim.pack();
-                runningSim.setLocationRelativeTo(null);
-                runningSim.setVisible(true);
-
-                System.out.println("Button");
-
-                startGameLoop();
+                return;
             }
+
+            begin.setEnabled(false);
+
+            spawnGrass();
+
+            runningSim = new JFrame(
+                    "Predator, Prey Simulation - Running"
+            );
+
+            runningSim.setDefaultCloseOperation(
+                    JFrame.EXIT_ON_CLOSE
+            );
+
+            simPanel = new SimPanel();
+
+            simPanel.setPreferredSize(
+                    new Dimension(
+                            Creature.WORLD_WIDTH,
+                            Creature.WORLD_HEIGHT
+                    )
+            );
+
+            simPanel.setBackground(
+                    new Color(18, 84, 13)
+            );
+
+            runningSim.add(
+                    simPanel,
+                    BorderLayout.CENTER
+            );
+
+            // Live population statistics
+            statsLabel = new JLabel();
+
+            statsLabel.setOpaque(true);
+
+            statsLabel.setBackground(
+                    new Color(24, 55, 30)
+            );
+
+            statsLabel.setForeground(Color.WHITE);
+
+            statsLabel.setFont(
+                    statsLabel.getFont().deriveFont(15f)
+            );
+
+            statsLabel.setBorder(
+                    BorderFactory.createEmptyBorder(
+                            10, 15, 10, 15
+                    )
+            );
+
+            runningSim.add(
+                    statsLabel,
+                    BorderLayout.SOUTH
+            );
+
+            // Show starting population counts
+            updateStatistics();
+
+            runningSim.setResizable(false);
+            runningSim.pack();
+            runningSim.setLocationRelativeTo(null);
+
+            simStart.dispose();
+            runningSim.setVisible(true);
+
+            startGameLoop();
         });
 
-        // Save starting predator amount
-        savePred.addActionListener(new ActionListener() {
-
-            @Override
-            public void actionPerformed(ActionEvent e) {
-
-                String strInput = predAmount.getText();
-                int input;
-
-                try {
-                    input = Integer.parseInt(strInput);
-                } catch (NumberFormatException ex) {
-                    System.out.println(
-                            "Invalid predator amount: " + strInput
-                    );
-                    return;
-                }
-
-                for (int i = 0; i < input; i++) {
-
-                    int x = random.nextInt(
-                            Creature.WORLD_WIDTH - 20
-                    );
-
-                    int y = random.nextInt(
-                            Creature.WORLD_HEIGHT - 20
-                    );
-
-                    sim.add(new Predator(5, 0, x, y, sim) { });
-
-                    System.out.println(
-                            "predator added: " + (i + 1) + " times"
-                    );
-                }
-            }
-        });
-
-        // Save starting prey amount
-        savePrey.addActionListener(new ActionListener() {
-
-            @Override
-            public void actionPerformed(ActionEvent e) {
-
-                String strInput = preyAmount.getText();
-                int input;
-
-                try {
-                    input = Integer.parseInt(strInput);
-                } catch (NumberFormatException ex) {
-                    System.out.println(
-                            "Invalid prey amount: " + strInput
-                    );
-                    return;
-                }
-
-                for (int i = 0; i < input; i++) {
-
-                    int x = random.nextInt(
-                            Creature.WORLD_WIDTH - 20
-                    );
-
-                    int y = random.nextInt(
-                            Creature.WORLD_HEIGHT - 20
-                    );
-
-                    sim.add(
-                            new Prey(
-                                    5, 10, x, y,
-                                    sim, grassList
-                            )
-                    );
-
-                    System.out.println(
-                            "Prey added: " + (i + 1) + " Times"
-                    );
-                }
-            }
-        });
-
-        // Build the start window
+        // Build the starting window
         panel.setLayout(
                 new BoxLayout(panel, BoxLayout.Y_AXIS)
         );
 
         panel.setBorder(
-                BorderFactory.createEmptyBorder(80, 20, 20, 20)
+                BorderFactory.createEmptyBorder(
+                        80, 20, 20, 20
+                )
         );
 
         row1.add(begin);
@@ -287,17 +385,28 @@ public class Simulation {
         panel.add(row4);
 
         simStart.add(panel, BorderLayout.CENTER);
-        simStart.add(panel);
 
         simStart.setVisible(true);
     }
 
-    // Create grass patches across the world
+    // Enable Start only when both populations are saved
+    private void updateStartButton() {
+
+        begin.setEnabled(
+                predatorsSaved && preySaved
+        );
+    }
+
+    // Create grass patches throughout the world
     private void spawnGrass() {
 
-        for (int i = 0; i < Creature.WORLD_WIDTH; i += GRASS_SIZE) {
+        for (int i = 0;
+             i < Creature.WORLD_WIDTH;
+             i += GRASS_SIZE) {
 
-            for (int j = 0; j < Creature.WORLD_HEIGHT; j += GRASS_SIZE) {
+            for (int j = 0;
+                 j < Creature.WORLD_HEIGHT;
+                 j += GRASS_SIZE) {
 
                 int randomGrowth = random.nextInt(
                         GRASS_GROWTH_TIME
@@ -305,51 +414,56 @@ public class Simulation {
 
                 int randomWeight = random.nextInt(20);
 
-                boolean isEaten = true;
-
-                if (randomWeight < 1) {
-                    isEaten = false;
-                }
+                boolean isEaten = randomWeight >= 1;
 
                 grassList.add(
-                        new Grass(i, j, randomGrowth, isEaten)
+                        new Grass(
+                                i,
+                                j,
+                                randomGrowth,
+                                isEaten
+                        )
                 );
             }
         }
     }
 
-    // Run creature movement, eating and simulation updates
+    // Start the simulation timer
     private void startGameLoop() {
 
         gameTimer = new Timer(
                 RENDER_INTERVAL_MS,
-                new ActionListener() {
+                e -> {
 
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
+                    // Snapshot prevents collection modification
+                    // errors while predators eat prey
+                    List<Creature> snapshot =
+                            new ArrayList<>(sim);
 
-                        List<Creature> snapshot =
-                                new ArrayList<>(sim);
+                    for (Creature creature : snapshot) {
 
-                        for (Creature c : snapshot) {
-                            c.movement();
-                            c.eat();
+                        // Skip creatures already eaten
+                        if (!sim.contains(creature)) {
+                            continue;
                         }
 
-                        frameCounter++;
-
-                        if (frameCounter >= TICKS_PER_LOGIC_UPDATE) {
-
-                            runSimulationTick();
-
-                            // New: refresh live ecosystem statistics
-                            updateStatistics();
-
-                            frameCounter = 0;
-                        }
-
-                        repaint();
+                        creature.movement();
+                        creature.eat();
                     }
+
+                    frameCounter++;
+
+                    if (frameCounter >= TICKS_PER_LOGIC_UPDATE) {
+
+                        runSimulationTick();
+
+                        // Refresh population statistics
+                        updateStatistics();
+
+                        frameCounter = 0;
+                    }
+
+                    repaint();
                 }
         );
 
@@ -360,67 +474,86 @@ public class Simulation {
     public void runSimulationTick() {
 
         List<Creature> snapshot = new ArrayList<>(sim);
+
         List<Creature> toRemove = new ArrayList<>();
 
-        for (Creature c : snapshot) {
+        // Remove creatures that starve
+        for (Creature creature : snapshot) {
 
-            if (c.starve()) {
-                toRemove.add(c);
+            if (creature.starve()) {
+                toRemove.add(creature);
             }
         }
 
         sim.removeAll(toRemove);
 
-        List<Creature> reproSnapshot = new ArrayList<>(sim);
+        // Use a snapshot because reproduction adds creatures
+        List<Creature> reproductionSnapshot =
+                new ArrayList<>(sim);
 
-        for (Creature c : reproSnapshot) {
-            c.reproduce();
+        for (Creature creature : reproductionSnapshot) {
+
+            // Prevent unlimited population growth
+            if (sim.size() >= MAX_POPULATION) {
+                break;
+            }
+
+            creature.reproduce();
         }
 
-        for (Grass g : grassList) {
-            g.tickGrowth();
+        // Allow eaten grass to grow again
+        for (Grass grass : grassList) {
+
+            grass.tickGrowth();
         }
     }
 
     // Individual improvement:
-    // Use Java Streams and Collectors for live ecosystem statistics
+    // Java Streams and Collectors for live statistics
     private void updateStatistics() {
 
-        // Group creatures into predators and prey
-        Map<String, Long> populationCounts = sim.stream()
-                .collect(
-                        Collectors.groupingBy(
-                                creature -> creature instanceof Predator
-                                        ? "Predator"
-                                        : "Prey",
-                                Collectors.counting()
-                        )
+        Map<String, Long> populationCounts =
+                sim.stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        creature ->
+                                                creature instanceof Predator
+                                                        ? "Predator"
+                                                        : "Prey",
+                                        Collectors.counting()
+                                )
+                        );
+
+        long predatorCount =
+                populationCounts.getOrDefault(
+                        "Predator",
+                        0L
                 );
 
-        long predatorCount = populationCounts.getOrDefault(
-                "Predator", 0L
-        );
-
-        long preyCount = populationCounts.getOrDefault(
-                "Prey", 0L
-        );
+        long preyCount =
+                populationCounts.getOrDefault(
+                        "Prey",
+                        0L
+                );
 
         // Count edible grass using a Stream
-        long edibleGrassCount = grassList.stream()
-                .filter(Grass::isEdible)
-                .count();
+        long edibleGrassCount =
+                grassList.stream()
+                        .filter(Grass::isEdible)
+                        .count();
 
-        // Update the statistics displayed below the world
         if (statsLabel != null) {
 
             statsLabel.setText(
                     "Predators: " + predatorCount
                     + "       |       Prey: " + preyCount
-                    + "       |       Edible grass: " + edibleGrassCount
+                    + "       |       Edible grass: "
+                    + edibleGrassCount
             );
         }
     }
 
+    // Refresh the simulation display
     public void repaint() {
 
         if (simPanel != null) {
@@ -428,7 +561,7 @@ public class Simulation {
         }
     }
 
-    // Render grass, predators and prey
+    // Draw grass, predators and prey
     private class SimPanel extends JPanel {
 
         @Override
@@ -436,7 +569,7 @@ public class Simulation {
 
             super.paintComponent(g);
 
-            // Edible grass is green
+            // Draw edible grass
             g.setColor(new Color(80, 200, 80));
 
             for (Grass grass : grassList) {
@@ -452,20 +585,23 @@ public class Simulation {
                 }
             }
 
-            // Predators are red and prey are blue
-            for (Creature c : new ArrayList<>(sim)) {
+            // Draw predators in red and prey in blue
+            for (Creature creature : new ArrayList<>(sim)) {
 
-                g.setColor(
-                        c instanceof Predator
-                                ? Color.RED
-                                : Color.BLUE
-                );
+                if (creature instanceof Predator) {
+
+                    g.setColor(Color.RED);
+
+                } else {
+
+                    g.setColor(Color.BLUE);
+                }
 
                 g.fillOval(
-                        c.getX(),
-                        c.getY(),
-                        20,
-                        20
+                        creature.getX(),
+                        creature.getY(),
+                        Creature.SIZE,
+                        Creature.SIZE
                 );
             }
         }
