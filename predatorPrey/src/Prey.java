@@ -4,11 +4,13 @@ import java.util.Optional;
 import java.util.Random;
 
 public class Prey extends Creature {
+
     private boolean inDanger;
     private List<Creature> sim;
     private List<Grass> grassList;
 
     private static final Random random = new Random();
+
     private static final int THREAT_RANGE = 120;
     private static final double FLEE_SPEED_MULTIPLIER = 1.8;
     private static final int EAT_RADIUS = 10;
@@ -18,9 +20,19 @@ public class Prey extends Creature {
 
     private int starvationRate = 1;
 
+    // Strategy pattern: prey can switch movement behaviour
+    private final MovementStrategy wanderStrategy = new WanderStrategy();
+
+    private final MovementStrategy fleeStrategy =
+            new FleeStrategy(FLEE_SPEED_MULTIPLIER);
+
+    private MovementStrategy movementStrategy = wanderStrategy;
+
     public Prey(int speed, int hunger, int x, int y,
                 List<Creature> sim, List<Grass> grassList) {
+
         super(speed, hunger, false, x, y);
+
         this.inDanger = false;
         this.sim = sim;
         this.grassList = grassList;
@@ -36,9 +48,10 @@ public class Prey extends Creature {
 
     @Override
     public void reproduce() {
+
         if (sim == null) {
             throw new IllegalStateException(
-                "Cannot reproduce: no simulation list assigned"
+                    "Cannot reproduce: no simulation list assigned"
             );
         }
 
@@ -46,7 +59,12 @@ public class Prey extends Creature {
                 && random.nextDouble() < REPRODUCE_CHANCE) {
 
             Prey offspring = new Prey(
-                getSpeed(), 0, getX(), getY(), sim, grassList
+                    getSpeed(),
+                    0,
+                    getX(),
+                    getY(),
+                    sim,
+                    grassList
             );
 
             sim.add(offspring);
@@ -57,31 +75,44 @@ public class Prey extends Creature {
     @Override
     public void movement() {
 
-        // Find predators using Streams
+        // Streams: find predators in the simulation
         List<Predator> predatorCandidates = sim.stream()
                 .filter(Predator.class::isInstance)
                 .map(Predator.class::cast)
                 .toList();
 
         Optional<Predator> nearestThreat =
-                findNearestInRange(predatorCandidates, THREAT_RANGE);
+                findNearestInRange(
+                        predatorCandidates,
+                        THREAT_RANGE
+                );
 
         if (nearestThreat.isPresent()) {
+
+            // Switch to fleeing when a predator is nearby
             setInDanger(true);
-            flee(nearestThreat.get());
+
+            movementStrategy = fleeStrategy;
+            movementStrategy.move(this, nearestThreat.get());
+
             recordPosition();
             return;
         }
 
         setInDanger(false);
 
+        // Wander normally when there is no danger
+        // and the prey is not hungry enough to seek food
         if (getStarvation() < GRAZE_THRESHOLD) {
-            moveWithBounce();
+
+            movementStrategy = wanderStrategy;
+            movementStrategy.move(this, null);
+
             recordPosition();
             return;
         }
 
-        // Find available grass using Streams
+        // Preserve the existing grazing behaviour
         List<Grass> edibleGrass = grassList.stream()
                 .filter(Grass::isEdible)
                 .toList();
@@ -89,55 +120,36 @@ public class Prey extends Creature {
         Optional<Grass> target = findClosest(edibleGrass);
 
         target.ifPresent(grass -> {
+
             double diffX = grass.getX() - getX();
             double diffY = grass.getY() - getY();
+
             double dist = Math.hypot(diffX, diffY);
 
-            if (dist == 0) return;
+            if (dist == 0) {
+                return;
+            }
 
             int moveX = (int) Math.round(
-                (diffX / dist) * getSpeed()
+                    (diffX / dist) * getSpeed()
             );
 
             int moveY = (int) Math.round(
-                (diffY / dist) * getSpeed()
+                    (diffY / dist) * getSpeed()
             );
 
             setX(getX() + moveX);
             setY(getY() + moveY);
+
             clampToWorld();
         });
 
         recordPosition();
     }
 
-    private void flee(Creature threat) {
-        double diffX = getX() - threat.getX();
-        double diffY = getY() - threat.getY();
-        double distance = Math.hypot(diffX, diffY);
-
-        if (distance == 0) {
-            diffX = 1;
-            distance = 1;
-        }
-
-        double boostedSpeed = getSpeed() * FLEE_SPEED_MULTIPLIER;
-
-        int moveX = (int) Math.round(
-            (diffX / distance) * boostedSpeed
-        );
-
-        int moveY = (int) Math.round(
-            (diffY / distance) * boostedSpeed
-        );
-
-        setX(getX() + moveX);
-        setY(getY() + moveY);
-        clampToWorld();
-    }
-
     @Override
     protected int getStarvationRate() {
+
         if (isInDanger()) {
             return starvationRate * 2;
         }
@@ -148,7 +160,7 @@ public class Prey extends Creature {
     @Override
     public void eat() {
 
-        // Find grass that can be eaten using Streams
+        // Streams: find grass that can be eaten
         List<Grass> edibleGrass = grassList.stream()
                 .filter(Grass::isEdible)
                 .toList();
@@ -156,9 +168,10 @@ public class Prey extends Creature {
         Optional<Grass> closest = findClosest(edibleGrass);
 
         closest.ifPresent(grass -> {
+
             double dist = Math.hypot(
-                getX() - grass.getX(),
-                getY() - grass.getY()
+                    getX() - grass.getX(),
+                    getY() - grass.getY()
             );
 
             if (dist <= EAT_RADIUS) {
